@@ -8,13 +8,6 @@ ezored_path = os.path.dirname(os.path.abspath(__file__))
 proj_path = ezored_path
 ezored_path = os.path.join(ezored_path, "ezored")
 
-if not os.path.isdir(ezored_path):
-    print("Cloning ezored-core to '{0}'".format(ezored_path))
-
-    subprocess.call(
-        ["git", "clone", "https://github.com/ezored/ezored-core.git", ezored_path]
-    )
-
 sys.path.insert(0, ezored_path)
 
 try:
