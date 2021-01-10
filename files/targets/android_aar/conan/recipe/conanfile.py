@@ -21,6 +21,7 @@ class TargetConan(ConanFile):
         "boost:without_fiber": True,
         "boost:without_nowide": True,
         "boost:without_json": True,
+        "boost:without_stacktrace_addr2line": True,
     }
     exports_sources = "*"
     generators = "cmake"

@@ -33,7 +33,7 @@ HttpResponse SimpleHttpClientPlatformService::doRequest(const HttpRequest &reque
     try
     {
         // prepare session
-        web::http::client::http_client httpClient(request.url.c_str());
+        web::http::client::http_client httpClient(web::uri(request.url.c_str()));
 
         // send request
         web::http::http_request httpRequest(getMethodFromRequest(request));
