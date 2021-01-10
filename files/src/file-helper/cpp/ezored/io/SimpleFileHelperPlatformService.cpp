@@ -1,11 +1,6 @@
 #include "SimpleFileHelperPlatformService.hpp"
 
-#include "Poco/DirectoryIterator.h"
-#include "Poco/File.h"
-#include "Poco/FileStream.h"
-#include "Poco/Path.h"
-#include "Poco/StreamCopier.h"
-#include "Poco/URI.h"
+#include "boost/filesystem.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -17,12 +12,19 @@ namespace ezored
 namespace io
 {
 
+namespace fs = boost::filesystem;
+
 bool SimpleFileHelperPlatformService::createFile(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        return f.createFile();
+        fs::path filePath{path};
+        fs::create_directories(filePath.parent_path());
+
+        std::ofstream ofs(fs::absolute(filePath).generic_string(), std::ios::out);
+        ofs.close();
+
+        return true;
     }
     catch (const std::exception &)
     {
@@ -34,7 +36,10 @@ bool SimpleFileHelperPlatformService::createFileWithStringContent(const std::str
 {
     try
     {
-        Poco::FileOutputStream stream(path, std::ios::out | std::ios::binary | std::ios::trunc);
+        fs::path filePath{path};
+        fs::create_directories(filePath.parent_path());
+
+        std::ofstream stream(fs::absolute(filePath).generic_string(), std::ios::out | std::ios::binary | std::ios::trunc);
         stream << content;
         stream.close();
 
@@ -50,7 +55,10 @@ bool SimpleFileHelperPlatformService::createFileWithBinaryContent(const std::str
 {
     try
     {
-        Poco::FileOutputStream stream(path, std::ios::in | std::ios::binary);
+        fs::path filePath{path};
+        fs::create_directories(filePath.parent_path());
+
+        std::ofstream stream(fs::absolute(filePath).generic_string(), std::ios::in | std::ios::binary);
 
         for (auto &data : content)
         {
@@ -71,8 +79,8 @@ bool SimpleFileHelperPlatformService::createDir(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        return f.createDirectory();
+        fs::path dirPath{path};
+        return fs::create_directories(dirPath);
     }
     catch (const std::exception &)
     {
@@ -84,10 +92,17 @@ std::vector<std::string> SimpleFileHelperPlatformService::listFiles(const std::s
 {
     try
     {
-        Poco::DirectoryIterator d(path);
+        fs::path dirPath{path};
         std::vector<std::string> files;
+        fs::directory_iterator endItr;
 
-        d->list(files);
+        for (fs::directory_iterator itr(dirPath); itr != endItr; ++itr)
+        {
+            if (is_regular_file(itr->path()))
+            {
+                files.push_back(itr->path().string());
+            }
+        }
 
         return files;
     }
@@ -101,8 +116,7 @@ std::string SimpleFileHelperPlatformService::getExtension(const std::string &pat
 {
     try
     {
-        Poco::Path p(path);
-        return p.getExtension();
+        return fs::extension(path);
     }
     catch (const std::exception &)
     {
@@ -114,8 +128,7 @@ std::string SimpleFileHelperPlatformService::getFilename(const std::string &path
 {
     try
     {
-        Poco::Path p(path);
-        return p.getFileName();
+        return fs::path(path).filename().c_str();
     }
     catch (const std::exception &)
     {
@@ -127,8 +140,7 @@ std::string SimpleFileHelperPlatformService::getBasename(const std::string &path
 {
     try
     {
-        Poco::Path p(path);
-        return p.getBaseName();
+        return fs::path(path).filename().c_str();
     }
     catch (const std::exception &)
     {
@@ -140,8 +152,7 @@ std::string SimpleFileHelperPlatformService::getFilenameFromUrl(const std::strin
 {
     try
     {
-        Poco::URI u(url);
-        return Poco::Path(u.getPath()).getFileName();
+        return fs::path(url).filename().c_str();
     }
     catch (const std::exception &)
     {
@@ -153,8 +164,7 @@ std::string SimpleFileHelperPlatformService::getBasenameFromUrl(const std::strin
 {
     try
     {
-        auto filename = getFilenameFromUrl(url);
-        return Poco::Path(filename).getBaseName();
+        return fs::path(url).filename().c_str();
     }
     catch (const std::exception &)
     {
@@ -166,8 +176,7 @@ bool SimpleFileHelperPlatformService::removeFile(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        f.remove(false);
+        fs::remove(path);
         return true;
     }
     catch (const std::exception &)
@@ -180,8 +189,7 @@ bool SimpleFileHelperPlatformService::removeDir(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        f.remove(true);
+        fs::remove_all(path);
         return true;
     }
     catch (const std::exception &)
@@ -194,8 +202,8 @@ bool SimpleFileHelperPlatformService::isDir(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        return f.isDirectory();
+        fs::path dirPath{path};
+        return fs::is_directory(dirPath);
     }
     catch (const std::exception &)
     {
@@ -207,8 +215,8 @@ bool SimpleFileHelperPlatformService::isFile(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        return f.isFile();
+        fs::path filePath{path};
+        return fs::is_regular_file(filePath);
     }
     catch (const std::exception &)
     {
@@ -220,8 +228,8 @@ int64_t SimpleFileHelperPlatformService::getFileSize(const std::string &path)
 {
     try
     {
-        Poco::File f(path);
-        return static_cast<int64_t>(f.getSize());
+        fs::path filePath{path};
+        return static_cast<int64_t>(fs::file_size(filePath));
     }
     catch (const std::exception &)
     {
@@ -233,8 +241,7 @@ bool SimpleFileHelperPlatformService::copyFile(const std::string &from, const st
 {
     try
     {
-        Poco::File f(from);
-        f.copyTo(to);
+        fs::copy_file(from, to, fs::copy_option::overwrite_if_exists);
         return true;
     }
     catch (const std::exception &)
@@ -247,8 +254,7 @@ bool SimpleFileHelperPlatformService::moveFile(const std::string &from, const st
 {
     try
     {
-        Poco::File f(from);
-        f.moveTo(to);
+        fs::rename(from, to);
         return true;
     }
     catch (const std::exception &)
@@ -261,8 +267,10 @@ std::string SimpleFileHelperPlatformService::join(const std::string &first, cons
 {
     try
     {
-        Poco::Path p(first, second);
-        return p.toString();
+        fs::path firstPath(first);
+        fs::path secondPath(second);
+
+        return (firstPath / secondPath).c_str();
     }
     catch (const std::exception &)
     {
@@ -275,8 +283,9 @@ std::string SimpleFileHelperPlatformService::getFileContentAsString(const std::s
     try
     {
         std::string data;
-        Poco::FileStream stream(path);
-        Poco::StreamCopier::copyToString(stream, data);
+        fs::ifstream stream(path);
+        stream >> data;
+        stream.close();
 
         return data;
     }
@@ -302,7 +311,17 @@ std::vector<uint8_t> SimpleFileHelperPlatformService::getFileContentAsBinary(con
 
 std::string SimpleFileHelperPlatformService::getHomeDir()
 {
-    return Poco::Path::home();
+    auto homeDirectory = "";
+
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+    homeDirectory = getenv("HOMEDRIVE") + getenv("HOMEPATH");
+#elif defined(unix) || defined(__linux__) || defined(__APPLE__) || defined(_POSIX_VERSION)
+    homeDirectory = getenv("HOME");
+#else
+    throw std::exception("[SimpleFileHelperPlatformService : getHomeDir] Unknown platform");
+#endif
+
+    return homeDirectory;
 }
 
 } // namespace io

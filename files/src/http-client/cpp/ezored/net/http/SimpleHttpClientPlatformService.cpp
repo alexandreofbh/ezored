@@ -8,21 +8,8 @@
 
 #include "ezored/helpers/StringHelper.hpp"
 
-#include "Poco/DigestStream.h"
-#include "Poco/MD5Engine.h"
-
-#include "Poco/Exception.h"
-#include "Poco/Net/HTTPClientSession.h"
-#include "Poco/Net/HTTPRequest.h"
-#include "Poco/Net/HTTPResponse.h"
-#include "Poco/Net/HTTPSClientSession.h"
-#include "Poco/Net/NameValueCollection.h"
-#include "Poco/Path.h"
-#include "Poco/StreamCopier.h"
-#include "Poco/URI.h"
-
-#include "Poco/UUID.h"
-#include "Poco/UUIDGenerator.h"
+#include "cpprest/filestream.h"
+#include "cpprest/http_client.h"
 
 #include <iostream>
 #include <map>
@@ -46,34 +33,15 @@ HttpResponse SimpleHttpClientPlatformService::doRequest(const HttpRequest &reque
     try
     {
         // prepare session
-        Poco::URI uri(request.url);
-        Poco::Net::HTTPClientSession *session;
-
-        if (uri.getScheme() == "https")
-        {
-            const Poco::Net::Context::Ptr context(new Poco::Net::Context(Poco::Net::Context::CLIENT_USE, "", Poco::Net::Context::VERIFY_NONE, 9, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"));
-            session = new Poco::Net::HTTPSClientSession(uri.getHost(), uri.getPort(), context);
-        }
-        else
-        {
-            session = new Poco::Net::HTTPClientSession(uri.getHost(), uri.getPort());
-        }
-
-        // prepare path
-        std::string path(uri.getPathAndQuery());
-
-        if (path.empty())
-        {
-            path = "/";
-        }
+        web::http::client::http_client httpClient(request.url);
 
         // send request
-        Poco::Net::HTTPRequest req(getMethodFromRequest(request), path, Poco::Net::HTTPMessage::HTTP_1_1);
+        web::http::http_request httpRequest(getMethodFromRequest(request));
 
         // set headers here
         for (auto &header : request.headers)
         {
-            req.set(header.name, header.value);
+            httpRequest.headers().add(header.name, header.value);
         }
 
         // set the request body
@@ -98,35 +66,28 @@ HttpResponse SimpleHttpClientPlatformService::doRequest(const HttpRequest &reque
             body = request.body;
         }
 
-        req.setContentLength(static_cast<std::streamsize>(body.length()));
-
-        // sends request, returns open stream
-        std::ostream &os = session->sendRequest(req);
-
-        // sends the body
-        os << body;
+        httpRequest.headers().set_content_length(static_cast<std::streamsize>(body.length()));
+        httpRequest.set_body(body);
 
         // get response
-        Poco::Net::HTTPResponse res;
-        std::istream &is = session->receiveResponse(res);
-        std::stringstream ss;
-        Poco::StreamCopier::copyStream(is, ss);
+        auto httpResponse = httpClient.request(httpRequest).then([](web::http::http_response response) {
+                                                               return response;
+                                                           })
+                                .get();
 
-        response.body = ss.str();
-        response.code = res.getStatus();
+        response.body = httpResponse.extract_string().get();
+        response.code = httpResponse.status_code();
         response.url = request.url;
 
-        Poco::Net::NameValueCollection::ConstIterator i = res.begin();
-
-        while (i != res.end())
+        // get headers
+        for (auto &header : httpResponse.headers())
         {
-            response.headers.push_back(HttpHeader(i->first, i->second));
-            ++i;
+            response.headers.push_back(HttpHeader(header.first, header.second));
         }
     }
-    catch (Poco::Exception &ex)
+    catch (std::exception &ex)
     {
-        response.body = ex.displayText();
+        response.body = ex.what();
     }
 
     return response;
@@ -137,31 +98,31 @@ std::string SimpleHttpClientPlatformService::getMethodFromRequest(const HttpRequ
     switch (request.method)
     {
     case HttpMethod::METHOD_GET:
-        return "GET";
+        return web::http::methods::GET;
         break;
     case HttpMethod::METHOD_POST:
-        return "POST";
+        return web::http::methods::POST;
         break;
     case HttpMethod::METHOD_HEAD:
-        return "HEAD";
+        return web::http::methods::HEAD;
         break;
     case HttpMethod::METHOD_PUT:
-        return "PUT";
+        return web::http::methods::PUT;
         break;
     case HttpMethod::METHOD_DELETE:
-        return "DELETE";
+        return web::http::methods::DEL;
         break;
     case HttpMethod::METHOD_PATCH:
-        return "PATCH";
+        return web::http::methods::PATCH;
         break;
     case HttpMethod::METHOD_CONNECT:
-        return "CONNECT";
+        return web::http::methods::CONNECT;
         break;
     case HttpMethod::METHOD_OPTIONS:
-        return "OPTIONS";
+        return web::http::methods::OPTIONS;
         break;
     case HttpMethod::METHOD_TRACE:
-        return "TRACE";
+        return web::http::methods::TRCE;
         break;
     }
 
