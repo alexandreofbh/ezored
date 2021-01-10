@@ -33,7 +33,7 @@ HttpResponse SimpleHttpClientPlatformService::doRequest(const HttpRequest &reque
     try
     {
         // prepare session
-        web::http::client::http_client httpClient(request.url);
+        web::http::client::http_client httpClient(request.url.c_str());
 
         // send request
         web::http::http_request httpRequest(getMethodFromRequest(request));
@@ -70,9 +70,10 @@ HttpResponse SimpleHttpClientPlatformService::doRequest(const HttpRequest &reque
         httpRequest.set_body(body);
 
         // get response
-        auto httpResponse = httpClient.request(httpRequest).then([](web::http::http_response response) {
-                                                               return response;
-                                                           })
+        auto httpResponse = httpClient.request(httpRequest)
+                                .then([](web::http::http_response response) {
+                                    return response;
+                                })
                                 .get();
 
         response.body = httpResponse.extract_string().get();
